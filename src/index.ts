@@ -1,5 +1,6 @@
 import * as SerialPort from "serialport"
 
+/** function that can be called via `await` in an `async` function to sleep. e.g. `await sleep(1000)` */
 function sleep (t:number) {
 	return new Promise((resolve) => {
 		setTimeout(resolve, t)
@@ -16,22 +17,37 @@ export interface Colour {
 	blue:number,
 }
 
+/** Different modes the HUE+ supports */
 export enum HuePlusMode {
+	/** Fixed colour. No effect */
 	fixed = "0x00",
+	/** Breathing effect */
 	breathing = "0x07",
 }
 
+/** Channels on the device */
 export enum HuePlusChannel {
+	/** Target both channels */
 	both = "0x00",
+	/** Target channel 1 */
 	one = "0x01",
+	/** Target channel 2 */
 	two = "0x02"
 }
 
+/** Converts a decimal (0-255) colour to a hex colour for use by the device */
 function decColourToHex (decColour:number) {
 	if (decColour < 0 || decColour > 255 || isNaN(decColour)) throw new Error("Colour must be in the range 0-255")
 	return "0x"+(decColour).toString(16)
 }
 
+/** Returns true if a hex number equals a buffer */
+function hexBufferEquals (buffer:Buffer, index:number, hex:string) {
+	// console.log(buffer[index].toString(16))
+	return buffer[index].toString(16) === hex.replace("0x", "")
+}
+
+/** Resets the port with serialport */
 function resetPort (port:SerialPort) : Promise<void> {
 	return new Promise ((resolve, reject) => {
 		port.flush((error) => {
@@ -44,9 +60,16 @@ function resetPort (port:SerialPort) : Promise<void> {
 	})
 }
 
+/**
+ * Control the NZXT Hue+ from node.js with an easy to use `async/await` API.
+ *
+ * @author Benjamin Gwynn (http://xenxier.com)
+*/
 export class HuePlus {
+	/** Serial port */
 	private port:SerialPort
 
+	/** Current LED colour payload to send to the device */
 	private colourPayload = [
 		// Set the LED colours in this channel as GREEN, RED, BLUE.
 		// There are a maximum of 40 LEDs per channel
@@ -95,15 +118,24 @@ export class HuePlus {
 		"0x00", "0x00", "0x00", // LED 40
 	]
 
+	/** Is the device connected */
 	public connected:boolean = false
 
-	constructor (portAddress:string, public mode:HuePlusMode = HuePlusMode.fixed) {
+	/** Amount of time to wait between sending payloads (in ms). By default, this is set to a safe value from my testing. You may change this to whatever you wish, but the device may start to skip instructions if this is too low. */
+	public waitPeriod:number = 300
+
+	/**
+	 * Declare a new NZXT Hue+ device
+	 * @argument portAddress The address the port is on. On Windows systems, this will probably be `COM3`, on Linux systems this will probably be `/dev/ttyACM0`.
+	 */
+	constructor (portAddress:string) {
 		this.port = new SerialPort(portAddress, {
 			autoOpen: false,
 			baudRate: 256000,
 		})
 	}
 
+	/** Send data to the device */
 	private send (data:Array<string>) : Promise <void> {
 		return new Promise((resolve, reject) => {
 			this.port.write(Buffer.from(data), (error) => {
@@ -122,17 +154,20 @@ export class HuePlus {
 		})
 	}
 
-	private async ping2c () {
+	/** Ping the device to attempt to activate it */
+	private async ping () {
 		await this.send(["0xc0"])
 		console.log("Pinged Hue+ with 0xc0")
 	}
 
+	/** Disconnects from the device. Do this when you have finished sending commands. */
 	public disconnect () : Promise <void> {
 		console.log("Disconnecting...")
 
 		return new Promise((resolve, reject) => {
 			if (!this.connected) {
-				reject("Cannot disconnect. Never successfully connected to the HUE+")
+				console.log("Never connected to the device.")
+				resolve()
 				return
 			}
 
@@ -143,6 +178,7 @@ export class HuePlus {
 		})
 	}
 
+	/** Connect to the device. Must be called after construction. */
 	public connect () : Promise<void> {
 		return new Promise((resolve, reject) => {
 			this.port.open(async (error) => {
@@ -151,26 +187,18 @@ export class HuePlus {
 					return
 				}
 
-				// Write 4b and 124 0x00's (https://github.com/kusti8/hue-plus/blob/master/hue_plus/hue.py#L399)
-				// await this.send(["0x4b"].concat(Array(124).fill("0x00")))
+				console.log("Waiting for device...")
 
-				// console.log("Resetting port...")
-				// await resetPort(this.port)
-				// console.log("Port reset!")
-
-				let pingInterval = setInterval(() => {this.ping2c()}, 3000)
-				// this.ping2c()
+				let pingInterval = setInterval(() => {
+					console.log("Still waiting on device...")
+					this.ping()
+				}, 3000)
+				this.ping()
 
 				let sentInitData:boolean = false
 
-				console.log("Port opened.")
-
-				function hexBufferEquals (buffer:Buffer, index:number, hex:string) {
-					// console.log(buffer[index].toString(16))
-					return buffer[index].toString(16) === hex.replace("0x", "")
-				}
-
-				this.port.on('data', async (data) => {
+				this.port.on("data", async (data) => {
+					console.log("Device is sending activity. Preparing it")
 					console.log("->", data, [...data])
 
 					// If we got one byte of data after pinging
@@ -204,51 +232,47 @@ export class HuePlus {
 
 					// The HUE+ then sends a bunch of information ending in 0x56
 					if (hexBufferEquals(data, data.length - 1, "0x56")) {
-						// console.log("Hue+ seems like it's ready to receieve the LED payload (got data ending in 0x56)")
-						// await sendLEDPayload()
-						// await disconnect()
-						console.log("We're connected and ready to send LED paylaods!")
+						console.log("Connected to the device. Ready to send payload.")
 						this.connected = true
 						resolve()
 
 						return
 					}
-
 				})
-
-				// ping the hue+ every three seconds with this until it responds
-
-				// while (doPing) {
-				// 	await sleep(3000)
-				// }
 			})
 
 		})
 	}
 
+	/** Queues the setting a single LED colour. This will not apply until you update the Hue+ with `<HuePlus>.update` */
 	public setLEDColour (ledIndex:number, colour:Colour) {
 		if (ledIndex < 0 || ledIndex > 39 || isNaN(ledIndex)) throw new Error("LED index out of bounds")
 
 		this.colourPayload[(ledIndex * 3) + 0] = decColourToHex(colour.green)
 		this.colourPayload[(ledIndex * 3) + 1] = decColourToHex(colour.red)
 		this.colourPayload[(ledIndex * 3) + 2] = decColourToHex(colour.blue)
-
-		// console.log("Setting LED", ledIndex, colour)
 	}
 
+	/** Queues the setting of all LEDs to the given colour. This will not apply until you update the Hue+ with `<HuePlus>.update */
 	public setAllLEDColours (colour: Colour) {
 		for (let i = 0; i < 40; i += 1) {
 			this.setLEDColour(i, colour)
 		}
 	}
 
+	/** Queues the turning off all LEDs. This will not apply until you update the Hue+ with `<HuePlus>.update */
 	public resetAllLEDColours () {
 		for (let i = 0; i < 40; i += 1) {
 			this.setLEDColour(i, {red:0, blue:0, green:0})
 		}
 	}
 
-	public update (channel: HuePlusChannel) : Promise<void> {
+	/**
+	 * Update the given channel with the updates you have passed.
+	 * @argument channel The channel to update
+	 * @argument mode The mode/effect to update the channel with. Defaults to fixed.
+	*/
+	public update (channel: HuePlusChannel, mode:HuePlusMode = HuePlusMode.fixed) : Promise<void> {
 		return new Promise((resolve, reject) => {
 			if (!this.connected) return reject("Cannot update because I'm not connected. Connect with <HuePlus>.connect() first")
 
@@ -258,12 +282,15 @@ export class HuePlus {
 				// Header
 				"0x4b", // LED payload header - 0x4b
 				channel, // Channel - 0x00: both, 0x01: C1, 0x02 c2
-				this.mode, // Mode - 0x00: fixed, 0x07: breathing
+				mode, // Mode - 0x00: fixed, 0x07: breathing
 				"0x01", // ???
 				"0x02", // ???
 			].concat(this.colourPayload))
 			.catch(reject)
-			.then(resolve)
+			.then(async () => {
+				await sleep(this.waitPeriod)
+				resolve()
+			})
 		})
 	}
 }
@@ -271,7 +298,7 @@ export class HuePlus {
 // DEV: testing
 async function test () {
 	try {
-		const hue = new HuePlus("/dev/ttyACM0", HuePlusMode.fixed)
+		const hue = new HuePlus("/dev/ttyACM0")
 
 		await hue.connect()
 
@@ -280,9 +307,17 @@ async function test () {
 		// await hue.update(HuePlusChannel.one)
 		await hue.update(HuePlusChannel.both)
 
-		// hue.setLEDColour(18, {red: 100, green: 0, blue: 255})
+		hue.setLEDColour(1, {red: 100, green: 0, blue: 255})
 
-		// await hue.update(HuePlusChannel.two)
+		await hue.update(HuePlusChannel.two)
+
+		hue.setAllLEDColours({red: 255, green: 255, blue: 255})
+
+		await hue.update(HuePlusChannel.one, HuePlusMode.breathing)
+
+		hue.setAllLEDColours({red: 100, green: 0, blue: 150})
+
+		await hue.update(HuePlusChannel.both)
 
 		await hue.disconnect()
 	} catch (ex) {

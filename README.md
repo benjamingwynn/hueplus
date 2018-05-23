@@ -5,34 +5,17 @@ If you're looking for a more tested alternative, try [this Python version writte
 
 ## Linux support
 
-Right now, I can't seem to get this to work on my Arch Linux install or my Raspberry Pi. When probing `/dev/ttyACM0`, the HUE+ seems to just respond with `0xff` instead of the expected `0x01` after sending it `0xc0`. `dmesg` has nothing useful, Wireshark doesn't seem to reveal anything which I can spot as being wrong. Ignoring the `0xff` and sending the rest of the instructions anyway does nothing useful.
-
-Log with waiting for 0xc0:
+Make sure the port is accessible from your user. Do:
 
 ```
-Port opened.
-Pinged Hue+ with 0xc0
--> <Buffer ff> [ 255 ]
-Pinged Hue+ with 0xc0
--> <Buffer ff> [ 255 ]
+sudo chmod 666 /dev/ttyACM0
 ```
 
-Log without waiting for 0xc0:
-
-```
-Port opened.
-Pinged Hue+ with 0xc0
--> <Buffer ff> [ 255 ]
-WARNING: unexpected result, this might be the hue+ telling us we sent it an invalid init command
-Sending 0x8d 0x01
--> <Buffer ff> [ 255 ]
-```
-
-This might be related to [this issue](https://github.com/node-serialport/node-serialport/issues/1362), but I'm unsure.
+Where /dev/ttyACM0 is the attached port. On some distributions you can also use the dialout group, see [this answer on AskUbuntu](https://askubuntu.com/a/58122/792949).
 
 ## API
 
-I'll put the API here once it's stable, but I'm sure you can work it out. Typescript typings are provided (as the project is written in Typescript).
+Typescript typings are provided (as the project is written in Typescript). See the code for JSDoc and usage.
 
 ### Example
 
