@@ -1,5 +1,4 @@
 import * as SerialPort from "serialport"
-import { setTimeout, clearInterval } from "timers"
 
 function sleep (t:number) {
 	return new Promise((resolve) => {
@@ -31,6 +30,18 @@ export enum HuePlusChannel {
 function decColourToHex (decColour:number) {
 	if (decColour < 0 || decColour > 255 || isNaN(decColour)) throw new Error("Colour must be in the range 0-255")
 	return "0x"+(decColour).toString(16)
+}
+
+function resetPort (port:SerialPort) : Promise<void> {
+	return new Promise ((resolve, reject) => {
+		port.flush((error) => {
+			if (error) {
+				reject(error)
+			} else {
+				resolve()
+			}
+		})
+	})
 }
 
 export class HuePlus {
@@ -84,7 +95,7 @@ export class HuePlus {
 		"0x00", "0x00", "0x00", // LED 40
 	]
 
-	public connected:boolean
+	public connected:boolean = false
 
 	constructor (portAddress:string, public mode:HuePlusMode = HuePlusMode.fixed) {
 		this.port = new SerialPort(portAddress, {
@@ -99,7 +110,13 @@ export class HuePlus {
 				if (error) {
 					reject(error)
 				} else {
-					resolve()
+					this.port.drain((err) => {
+						if (err) {
+							reject(err)
+						} else {
+							resolve()
+						}
+					})
 				}
 			})
 		})
@@ -134,15 +151,22 @@ export class HuePlus {
 					return
 				}
 
+				// Write 4b and 124 0x00's (https://github.com/kusti8/hue-plus/blob/master/hue_plus/hue.py#L399)
+				// await this.send(["0x4b"].concat(Array(124).fill("0x00")))
+
+				// console.log("Resetting port...")
+				// await resetPort(this.port)
+				// console.log("Port reset!")
+
 				let pingInterval = setInterval(() => {this.ping2c()}, 3000)
-				this.ping2c()
+				// this.ping2c()
 
 				let sentInitData:boolean = false
 
 				console.log("Port opened.")
 
 				function hexBufferEquals (buffer:Buffer, index:number, hex:string) {
-					console.log(buffer[index].toString(16))
+					// console.log(buffer[index].toString(16))
 					return buffer[index].toString(16) === hex.replace("0x", "")
 				}
 
@@ -150,7 +174,7 @@ export class HuePlus {
 					console.log("->", data, [...data])
 
 					// If we got one byte of data after pinging
-					if (data.length === 1 && !sentInitData) {
+					if (/*data.length === 1 && */!sentInitData/* && data[0] === 1*/) {
 						if (data[0] === 1) {
 							console.log("Expected result, int 1")
 						} else {
@@ -233,7 +257,7 @@ export class HuePlus {
 			this.send([
 				// Header
 				"0x4b", // LED payload header - 0x4b
-				channel, // Channel - 0x01: both, 0x01: C1, 0x02 c2
+				channel, // Channel - 0x00: both, 0x01: C1, 0x02 c2
 				this.mode, // Mode - 0x00: fixed, 0x07: breathing
 				"0x01", // ???
 				"0x02", // ???
@@ -247,18 +271,11 @@ export class HuePlus {
 // DEV: testing
 async function test () {
 	try {
-		const hue = new HuePlus("COM3", HuePlusMode.fixed)
+		const hue = new HuePlus("/dev/ttyACM0", HuePlusMode.fixed)
 
 		await hue.connect()
 
-		hue.setAllLEDColours({red: 255, green: 255, blue: 255})
-		hue.setLEDColour(0, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(3, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(6, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(9, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(12, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(15, {red: 255, green: 0, blue: 0})
-		hue.setLEDColour(18, {red: 255, green: 0, blue: 0})
+		hue.setAllLEDColours({red: 255, green: 0, blue: 0})
 
 		// await hue.update(HuePlusChannel.one)
 		await hue.update(HuePlusChannel.both)
@@ -269,8 +286,9 @@ async function test () {
 
 		await hue.disconnect()
 	} catch (ex) {
+		console.error(ex)
 		throw ex
 	}
 }
 
-// test()
+test()
