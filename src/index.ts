@@ -23,16 +23,26 @@ export enum HuePlusMode {
 	fixed = "0x00",
 	/** Breathing effect */
 	breathing = "0x07",
-	fading = 1,
-	marquee = 3,
-	cover_marquee = 4,
-	pulse = 6,
-	spectrum = 2,
-	alternating = 5,
-	candlelight = 9,
-	wings = 12,
-	wave = 13,
-	alert = 8
+	/** Untested */
+	fading = "0x01",
+	/** Untested */
+	marquee = "0x03",
+	/** Untested */
+	cover_marquee = "0x04",
+	/** Untested */
+	pulse = "0x06",
+	/** Untested */
+	spectrum = "0x02",
+	/** Untested */
+	alternating = "0x05",
+	/** Untested */
+	candlelight = "0x09",
+	/** Untested */
+	wings = "0x12",
+	/** Untested */
+	wave = "0x13",
+	/** Untested */
+	alert = "0x08"
 }
 
 /** Channels on the device */
