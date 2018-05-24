@@ -294,36 +294,3 @@ export class HuePlus {
 		})
 	}
 }
-
-// DEV: testing
-async function test () {
-	try {
-		const hue = new HuePlus("/dev/ttyACM0")
-
-		await hue.connect()
-
-		hue.setAllLEDColours({red: 255, green: 0, blue: 0})
-
-		// await hue.update(HuePlusChannel.one)
-		await hue.update(HuePlusChannel.both)
-
-		hue.setLEDColour(1, {red: 100, green: 0, blue: 255})
-
-		await hue.update(HuePlusChannel.two)
-
-		hue.setAllLEDColours({red: 255, green: 255, blue: 255})
-
-		await hue.update(HuePlusChannel.one, HuePlusMode.breathing)
-
-		hue.setAllLEDColours({red: 100, green: 0, blue: 150})
-
-		await hue.update(HuePlusChannel.both)
-
-		await hue.disconnect()
-	} catch (ex) {
-		console.error(ex)
-		throw ex
-	}
-}
-
-test()
