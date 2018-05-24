@@ -292,7 +292,7 @@ export class HuePlus {
 	 * @argument channel The channel to update
 	 * @argument mode The mode/effect to update the channel with. Defaults to fixed.
 	*/
-	public update (channel: HuePlusChannel, mode:HuePlusMode = HuePlusMode.fixed) : Promise<void> {
+	public update (channel: HuePlusChannel, mode:HuePlusMode = HuePlusMode.fixed, direction = "0x01", speed = "0x02") : Promise<void> {
 		return new Promise((resolve, reject) => {
 			if (!this.connected) return reject("Cannot update because I'm not connected. Connect with <HuePlus>.connect() first")
 
@@ -303,8 +303,8 @@ export class HuePlus {
 				"0x4b", // LED payload header - 0x4b
 				channel, // Channel - 0x00: both, 0x01: C1, 0x02 c2
 				mode, // Mode - 0x00: fixed, 0x07: breathing
-				"0x01", // ???
-				"0x02", // ???
+				direction, // ??? Could be direction?
+				speed, // ??? Could be speed?
 			].concat(this.colourPayload))
 			.catch(reject)
 			.then(async () => {
