@@ -17,6 +17,14 @@ export interface Colour {
 	blue:number,
 }
 
+export enum HuePlusSpeed {
+	slowest = "0x00",
+	slow = "0x01",
+	normal = "0x02",
+	fast = "0x03",
+	fastest = "0x04",
+}
+
 /** Different modes the HUE+ supports */
 export enum HuePlusMode {
 	/** Fixed colour. No effect */
@@ -292,7 +300,7 @@ export class HuePlus {
 	 * @argument channel The channel to update
 	 * @argument mode The mode/effect to update the channel with. Defaults to fixed.
 	*/
-	public update (channel: HuePlusChannel, mode:HuePlusMode = HuePlusMode.fixed, direction = "0x01", speed = "0x02") : Promise<void> {
+	public update (channel: HuePlusChannel, mode:HuePlusMode = HuePlusMode.fixed, direction = "0x01", speed:HuePlusSpeed = HuePlusSpeed.normal) : Promise<void> {
 		return new Promise((resolve, reject) => {
 			if (!this.connected) return reject("Cannot update because I'm not connected. Connect with <HuePlus>.connect() first")
 
